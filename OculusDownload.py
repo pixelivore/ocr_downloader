@@ -14,6 +14,7 @@ except ImportError:
     from HTMLParser import HTMLParser
 
 ocDownloadUrl = 'https://www3.oculus.com/en-us/setup/'
+ocDownloadBaseUrl = 'https://www3.oculus.com'
 ocInstallerConfigUrl = 'https://graph.oculus.com/bootstrap_installer_config'
 ocSetupName = 'OculusSetup.exe'
 ocDownloadCachePath = 'c:\\OculusSetup-DownloadCache'
@@ -29,7 +30,7 @@ class SetupLinkParser(HTMLParser):
         if tag == 'a':
             ocSetupFound = 0
             for name,value in attrs:
-                if name == 'id' and value == 'rift-setup-download-button-link':
+                if name == 'data-testid' and value == 'download_oculus_software':
                     ocSetupFound = 1
                     break
             if ocSetupFound == 1:
@@ -83,9 +84,12 @@ def DownloadFileThread(uri, loc, fileName, size):
     if okToDownload == 1:
         print ('Download %s' %(fileName))
         fp = urlopen(AddAccessToken(uri)) 
-        fd = fp.read() 
         with open(fullName, "wb") as raw:
-            raw.write(fd)
+            while True:
+                tmp = fp.read(1024)
+                if not tmp:
+                    break 
+                raw.write(tmp)
     else:
         print ('Skip %s' %(fileName))
 
@@ -98,7 +102,13 @@ def DownloadManager():
     # Parse main setup
     url = SetupLinkParser()
     url.feed(RequestInstaller())
-    th = Thread(target = DownloadFileThread, kwargs={'uri': url.getUrl(), 'loc': os.path.dirname(os.path.realpath(__file__)), 'fileName' : ocSetupName, 'size' : 0})
+    
+    if url.getUrl().startswith('/'):
+        downloadLink = ocDownloadBaseUrl + url.getUrl()
+    else :
+        downloadLink = url.getUrl()
+
+    th = Thread(target = DownloadFileThread, kwargs={'uri': downloadLink, 'loc': os.path.dirname(os.path.realpath(__file__)), 'fileName' : ocSetupName, 'size' : 0})
     th.start()
     tList.append(th)
 
@@ -129,8 +139,8 @@ def DownloadManager():
 def InstallManager():
     setupFile = os.path.dirname(os.path.realpath(__file__))+'\\'+ocSetupName
     if(os.path.isfile(setupFile)):
-        print ('Run %s...' %(setupFile))
-        os.system(setupFile)
+        print ('Run %s...' %(setupFile+' --forcezips'))
+        os.system(setupFile+' --forcezips')
     else:
         print ("Can't find %s" %(setupFile))
 
@@ -159,4 +169,3 @@ if __name__ == '__main__':
 
     if validArg == 0:
         Usage()
-
